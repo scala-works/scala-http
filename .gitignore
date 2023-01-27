@@ -1,0 +1,24 @@
+# IntelliJ Idea
+.idea/
+
+# VS Code
+.vscode/
+
+# metals
+.metals/
+.bloop/
+.ammonite/
+metals.sbt
+
+# sbt
+target/
+
+# mill
+out/
+
+# Scala
+.bsp/
+.scala-build/
+
+# Misc
+.env
