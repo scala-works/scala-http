@@ -16,4 +16,7 @@ lazy val server = project
 
 lazy val example = project
   .in(file("example"))
+  .settings(
+    fork := true,
+  )
   .dependsOn(server)

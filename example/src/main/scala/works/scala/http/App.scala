@@ -5,12 +5,20 @@ import works.scala.http.controllers.{ GreetController, HeathController }
 import works.scala.http.server.{ Controller, Router }
 
 import scala.concurrent.Future
+import works.scala.http.server.Server
+import scala.deriving.Mirror.ProductOf
+import sttp.tapir.server.netty.NettyFutureServer
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
 
-object App extends App with Router[Any]:
+case class MyRouter(health: HeathController, greet: GreetController)
+    derives Router
 
-  inline given List[ServerEndpoint[Any, Future]] = List(
-    HeathController().routes,
-    GreetController("Scala Works!").routes,
-  ).flatten
-
-  start
+object App extends Server[MyRouter]:
+  override val dependencies: Future[MyRouter] = Future(
+    MyRouter(
+      HeathController(),
+      GreetController("Scala Works!"),
+    ),
+  )
+  serve

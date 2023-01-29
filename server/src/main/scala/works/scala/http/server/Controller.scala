@@ -7,17 +7,19 @@ import scala.concurrent.Future
 import scala.deriving.*
 import scala.quoted.*
 
-trait Controller[A]:
-  extension (a: A) def routes: List[ServerEndpoint[Any, Future]]
+trait TapirController[A, F[_]]:
+  def routesOf(a: A): List[ServerEndpoint[Any, F]]
+  extension (a: A) def routes: List[ServerEndpoint[Any, F]] = routesOf(a)
 
-object Controller:
-  inline def gatherRoutes[A](a: A): List[ServerEndpoint[Any, Future]] = ${
-    gatherRoutesImpl[A]('a)
+object TapirController:
+
+  inline def gatherRoutes[A, F[_]](a: A): List[ServerEndpoint[Any, F]] = ${
+    gatherRoutesImpl[A, F]('a)
   }
 
-  private def gatherRoutesImpl[A: Type](a: Expr[A])(using
+  private def gatherRoutesImpl[A: Type, F[_]: Type](a: Expr[A])(using
       Quotes,
-  ): Expr[List[ServerEndpoint[Any, Future]]] =
+  ): Expr[List[ServerEndpoint[Any, F]]] =
     import quotes.reflect.*
     println(s"/**")
     val controllerRep = TypeRepr.of[A]
@@ -30,7 +32,7 @@ object Controller:
       println(s"*\t$f: ${ t.typeSymbol.name }")
     }
     // This is only filtering on ServerEndpoint; needs to also filter on ServerEndpoint type arguments
-    val desired       = TypeRepr.of[ServerEndpoint[?, ?]]
+    val desired       = TypeRepr.of[ServerEndpoint[?, F]]
     val filtered      = fieldsT.filter {
       case (f, t) if t.typeSymbol.name == desired.typeSymbol.name => true
       case _                                                      => false
@@ -40,16 +42,19 @@ object Controller:
       println(s"*\t$f: ${ t.typeSymbol.name }")
     }
     val results       = filtered.map { case (f, t) =>
-      Select(a.asTerm, f).asExprOf[ServerEndpoint[Any, Future]]
+      Select(a.asTerm, f).asExprOf[ServerEndpoint[Any, F]]
     }
     println(s"**/")
     Expr.ofList(results)
 
-  inline given derived[A <: Product](using m: Mirror.Of[A]): Controller[A] =
+trait Controller[A] extends TapirController[A, Future]
+
+object Controller:
+  inline given derived[A](using m: Mirror.Of[A]): Controller[A] =
     inline m match
       case _: Mirror.SumOf[A]     =>
         error("Auto derivation is not supported for Sum types")
       case p: Mirror.ProductOf[A] =>
         new Controller[A]:
-          extension (a: A)
-            def routes: List[ServerEndpoint[Any, Future]] = gatherRoutes[A](a)
+          override def routesOf(a: A): List[ServerEndpoint[Any, Future]] =
+            TapirController.gatherRoutes[A, Future](a)
