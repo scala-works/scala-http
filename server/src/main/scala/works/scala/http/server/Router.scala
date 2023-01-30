@@ -11,17 +11,11 @@ import scala.deriving.*
 import scala.quoted.*
 
 trait TapirRouter[A, F[_]]:
-  def collectRoutes(using p: Mirror.ProductOf[A])(
-      t: p.MirroredElemTypes,
-  ): List[ServerEndpoint[Any, F]]
+  def controllersOf(a: A): List[TapirController[?, F]]
+  extension (a: A)
+    def controllers: List[TapirController[?, F]] = controllersOf(a)
 
 object TapirRouter:
-
-  inline def summonControllers[T <: Tuple]: List[Controller[?]] =
-    inline erasedValue[T] match
-      case _: EmptyTuple => Nil
-      case _: (t *: ts)  =>
-        summonInline[Controller[t]] :: summonControllers[ts]
 
   def swaggerEndpoints[F[_]](
       endpoints: List[ServerEndpoint[Any, F]],
@@ -33,11 +27,7 @@ object TapirRouter:
         "1.0",
       )
 
-case class MyRouter(a: String, b: Int)
-
-trait Router[A]:
-  def controllersOf(a: A): List[Controller[?]]
-  extension (a: A) def controllers[F[_]]: List[Controller[?]] = controllersOf(a)
+trait Router[A] extends TapirRouter[A, Future]
 
 object Router:
 
@@ -47,5 +37,7 @@ object Router:
         error("Auto derivation is not supported for Sum types")
       case p: Mirror.ProductOf[A] =>
         new Router[A]:
-          override def controllersOf(a: A): List[Controller[?]] =
-            TapirRouter.summonControllers[p.MirroredElemTypes]
+          override def controllersOf(
+              a: A,
+          ): List[TapirController[?, scala.concurrent.Future]] =
+            MacroHelpers.summonListOf[p.MirroredElemTypes, Controller]

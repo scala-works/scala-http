@@ -15,8 +15,8 @@ trait TapirServer[A, F[_]]:
   val dependencies: F[A]
   inline def serve(using p: Mirror.ProductOf[A]): F[Unit]
 
-  /** Future based implementation
-    */
+/** Future based implementation
+  */
 trait Server[A <: Product] extends TapirServer[A, Future] with scala.App:
   given ec: scala.concurrent.ExecutionContext =
     scala.concurrent.ExecutionContext.global
@@ -27,8 +27,10 @@ trait Server[A <: Product] extends TapirServer[A, Future] with scala.App:
         val router: Router[A] =
           summonInline[Router[A]]
 
-        val controllers: List[Controller[Any]] =
-          router.controllersOf(d).map(_.asInstanceOf[Controller[Any]])
+        val controllers: List[TapirController[Any, scala.concurrent.Future]] =
+          router
+            .controllersOf(d)
+            .map(_.asInstanceOf[TapirController[Any, Future]])
 
         val routes: List[ServerEndpoint[Any, concurrent.Future]] =
           d.productIterator
@@ -46,4 +48,3 @@ trait Server[A <: Product] extends TapirServer[A, Future] with scala.App:
       .addEndpoints(Await.result(routes, Duration.Inf))
       .start()
       .map(_ => ())
-
